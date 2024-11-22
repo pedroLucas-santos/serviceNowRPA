@@ -1,7 +1,7 @@
 const { chromium } = require("playwright")
 
 ;(async () => {
-    const userDataDir = "C:/Users/lolre/AppData/Local/Google/Chrome/User Data"
+    const userDataDir = "C:/Users/P0406/AppData/Local/Google/Chrome/User Data"
     const url =
         "https://soneparprod.service-now.com/now/nav/ui/classic/params/target/%24pa_dashboard.do%3Fsysparm_dashboard%3D5fb6e1a2c3386d94c354254ce00131a1%26sysparm_tab%3D11c6e5a2c3386d94c354254ce001316e%26sysparm_cancelable%3Dtrue%26sysparm_editable%3Dundefined%26sysparm_active_panel%3Dfalse"
 
