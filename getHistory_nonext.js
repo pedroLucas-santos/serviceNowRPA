@@ -1,6 +1,7 @@
 const { chromium } = require("playwright")
 const xlsx = require("xlsx")
 const fs = require("fs")
+const path = require("path")
 
 const readExcelFile = (filePath) => {
     const workbook = xlsx.readFile(filePath)
@@ -39,10 +40,21 @@ const reorderColumns = (data, columnOrder) => {
 }
 
 ;(async () => {
-    const filePath = "C:/Users/P0406/Downloads/suporte_sonepar/suporte_sonepar_att_2024-11-20.xlsx"
-    const newFilePath = "C:/Users/P0406/Downloads/suporte_sonepar/suporte_sonepar_att_updated.xlsx"
+    const filePath = "C:/Users/P0406/Desktop/serviceNowRPA/Relatórios/sonepar.xlsx"
+    const newFilePath = "C:/Users/P0406/Desktop/serviceNowRPA/Relatórios/suporte_sonepar_updated.xlsx"
 
-    const { incidents, workbook, data } = readExcelFile(filePath)
+    let workbook, data
+    if (fs.existsSync(newFilePath)) {
+        const { workbook: existingWorkbook, data: existingData } = readExcelFile(newFilePath)
+        workbook = existingWorkbook
+        data = existingData
+    } else {
+        const { workbook: initialWorkbook, data: initialData } = readExcelFile(filePath)
+        workbook = initialWorkbook
+        data = initialData
+    }
+
+    const { incidents } = readExcelFile(filePath)
 
     const userDataDir = "C:/Users/P0406/AppData/Local/Google/Chrome/User Data"
     const url =
@@ -52,7 +64,7 @@ const reorderColumns = (data, columnOrder) => {
         headless: false,
         executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
         args: ["--disable-gpu", "--disable-dev-shm-usage", "--disable-software-rasterizer"],
-        viewport: { width: 1440, height: 720 },
+        viewport: { width: 1280, height: 720 },
     })
     const page = await browser.newPage()
     await page.goto(url, { waitUntil: "domcontentloaded" })
@@ -62,22 +74,36 @@ const reorderColumns = (data, columnOrder) => {
 
     let index = 0
 
- /*    const incidents_test = ["INC0936164"] */
-
     for (const incident of incidents) {
         console.log(`Processing incident: ${incident}`)
+
+        if (data[index][newColumnName] && data[index][diffColumnName]) {
+            console.log(`Skipping incident ${incident} because columns are already filled.`)
+            index++
+            continue
+        }
 
         await page.getByLabel("Pesquisa global", { exact: true }).locator("span").first().click()
         await page.getByPlaceholder("Pesquisar").fill(incident)
         await page.getByPlaceholder("Pesquisar").press("Enter")
 
-        await page.waitForLoadState("networkidle")
-        await page.waitForTimeout(500)
-
         const contentFrame = await page.locator('iframe[name="gsft_main"]').contentFrame()
 
         if (contentFrame) {
             await contentFrame.getByLabel("menu de ações adicionais").click()
+
+            let ariaExpanded = await contentFrame.getByLabel("menu de ações adicionais").getAttribute("aria-expanded")
+            let retryClick = false
+
+            while (!retryClick) {
+                if (ariaExpanded !== "true") {
+                    await contentFrame.getByLabel("menu de ações adicionais").click()
+                    ariaExpanded = await contentFrame.getByLabel("menu de ações adicionais").getAttribute("aria-expanded")
+                } else {
+                    retryClick = true
+                }
+            }
+
             await contentFrame.getByRole("menuitem", { name: "Histórico " }).click()
             await contentFrame.getByRole("menuitem", { name: "Calendário" }).click()
 
@@ -110,12 +136,14 @@ const reorderColumns = (data, columnOrder) => {
 
                         const regexCentral = /Central de Atendimento/i
                         const regexFornecedor = /Fornecedor SZ/i
+                        const regexSistemas = /Sistemas/i
 
+                        const hasSistemas = regexSistemas.test(servicoText)
                         const hasCentralAtendimento = regexCentral.test(servicoText)
                         const hasFornecedorSZ = regexFornecedor.test(servicoText)
 
-                        if (hasCentralAtendimento && hasFornecedorSZ) {
-                            console.log(`Found: Central de Atendimento and Fornecedor SZ`)
+                        if ((hasCentralAtendimento || hasSistemas) && hasFornecedorSZ) {
+                            console.log(`Found: Central de Atendimento/Sistemas and Fornecedor SZ`)
                             const fullText = await historyElement.locator('xpath=preceding-sibling::div[@id="historyEventItem"][1]').textContent()
 
                             const dateTimeRegex = /^\d{4}-\d{2}-\d{2}~ \d{2}:\d{2}:\d{2}/
@@ -123,7 +151,7 @@ const reorderColumns = (data, columnOrder) => {
 
                             const excelDateTime = dateTime.replace("~", " ")
 
-                            console.log("Excel-friendly date and time:", excelDateTime)
+                            console.log("Excel-friendly date and time:", excelDateTime, "\n")
 
                             if (dateTime) {
                                 data[index][newColumnName] = excelDateTime
@@ -141,30 +169,30 @@ const reorderColumns = (data, columnOrder) => {
             }
         }
 
+        const columnOrder = [
+            "Aberto",
+            "Número",
+            "IC Afetado",
+            "Empresa Afetada",
+            "Aberto por",
+            "Descrição resumida",
+            "Atribuído a",
+            "Encerrado",
+            "Estado",
+            "SLA de Resolução %",
+            "SLA de Resolução Tempo",
+            newColumnName,
+            diffColumnName,
+        ]
+
+        const reorderedData = reorderColumns(data, columnOrder)
+
+        saveToExcelFile(workbook, reorderedData, [newColumnName, diffColumnName], newFilePath)
+
+        console.log("Data saved to file: ", newFilePath)
+
         index++
     }
-
-    const columnOrder = [
-        "Aberto",
-        "Número",
-        "IC Afetado",
-        "Empresa Afetada",
-        "Aberto por",
-        "Descrição resumida",
-        "Atribuído a",
-        "Encerrado",
-        "Estado",
-        "SLA de Resolução %",
-        "SLA de Resolução Tempo",
-        newColumnName,
-        diffColumnName,
-    ]
-
-    const reorderedData = reorderColumns(data, columnOrder)
-
-    saveToExcelFile(workbook, reorderedData, [newColumnName, diffColumnName], newFilePath)
-
-    console.log("Data saved to file: ", newFilePath)
 
     browser.close()
 })()
