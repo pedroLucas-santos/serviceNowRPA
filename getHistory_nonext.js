@@ -137,12 +137,14 @@ const reorderColumns = (data, columnOrder) => {
                         const regexCentral = /Central de Atendimento/i
                         const regexFornecedor = /Fornecedor SZ/i
                         const regexSistemas = /Sistemas/i
+                        const regexEXT = /.*_EXT$/i
 
                         const hasSistemas = regexSistemas.test(servicoText)
                         const hasCentralAtendimento = regexCentral.test(servicoText)
                         const hasFornecedorSZ = regexFornecedor.test(servicoText)
+                        const hasEXT = regexEXT.test(servicoText)
 
-                        if ((hasCentralAtendimento || hasSistemas) && hasFornecedorSZ) {
+                        if ((hasCentralAtendimento || hasSistemas) && (hasFornecedorSZ && hasEXT)) {
                             console.log(`Found: Central de Atendimento/Sistemas and Fornecedor SZ`)
                             const fullText = await historyElement.locator('xpath=preceding-sibling::div[@id="historyEventItem"][1]').textContent()
 
