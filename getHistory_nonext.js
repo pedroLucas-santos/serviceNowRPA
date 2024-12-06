@@ -40,8 +40,8 @@ const reorderColumns = (data, columnOrder) => {
 }
 
 ;(async () => {
-    const filePath = "C:/Users/P0406/Desktop/serviceNowRPA/Relatórios/sonepar.xlsx"
-    const newFilePath = "C:/Users/P0406/Desktop/serviceNowRPA/Relatórios/suporte_sonepar_updated.xlsx"
+    const filePath = "C:/Users/P0850/Downloads/relatorios/suporte_sonepar_att_2024-12-04.xlsx"
+    const newFilePath = "C:/Users/P0850/Downloads/relatorios/suporte_sonepar_updated.xlsx"
 
     let workbook, data
     if (fs.existsSync(newFilePath)) {
@@ -56,18 +56,21 @@ const reorderColumns = (data, columnOrder) => {
 
     const { incidents } = readExcelFile(filePath)
 
-    const userDataDir = "C:/Users/P0406/AppData/Local/Google/Chrome/User Data"
+    const userDataDir = "C:/Users/P0850/AppData/Local/Google/Chrome/User Data"
     const url =
         "https://soneparprod.service-now.com/now/nav/ui/classic/params/target/%24pa_dashboard.do%3Fsysparm_dashboard%3D5fb6e1a2c3386d94c354254ce00131a1%26sysparm_tab%3D11c6e5a2c3386d94c354254ce001316e%26sysparm_cancelable%3Dtrue%26sysparm_editable%3Dundefined%26sysparm_active_panel%3Dfalse"
 
-    const browser = await chromium.launchPersistentContext(userDataDir, {
+    const browser = await chromium.launchPersistentContext(userDataDir,{
         headless: false,
         executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
         args: ["--disable-gpu", "--disable-dev-shm-usage", "--disable-software-rasterizer"],
         viewport: { width: 1280, height: 720 },
     })
+
     const page = await browser.newPage()
-    await page.goto(url, { waitUntil: "domcontentloaded" })
+    await page.goto(url)
+
+    await page.waitForLoadState("networkidle")
 
     const newColumnName = "Caixa SZ"
     const diffColumnName = "Aberto x Caixa SZ"
@@ -137,12 +140,14 @@ const reorderColumns = (data, columnOrder) => {
                         const regexCentral = /Central de Atendimento/i
                         const regexFornecedor = /Fornecedor SZ/i
                         const regexSistemas = /Sistemas/i
+                        const regexEXT = /_EXT$/
 
                         const hasSistemas = regexSistemas.test(servicoText)
                         const hasCentralAtendimento = regexCentral.test(servicoText)
                         const hasFornecedorSZ = regexFornecedor.test(servicoText)
+                        const hasEXT = regexEXT.test(servicoText)
 
-                        if ((hasCentralAtendimento || hasSistemas) && hasFornecedorSZ) {
+                        if ((hasCentralAtendimento || hasSistemas) && (hasFornecedorSZ || hasEXT)) {
                             console.log(`Found: Central de Atendimento/Sistemas and Fornecedor SZ`)
                             const fullText = await historyElement.locator('xpath=preceding-sibling::div[@id="historyEventItem"][1]').textContent()
 
@@ -193,6 +198,5 @@ const reorderColumns = (data, columnOrder) => {
 
         index++
     }
-
-    browser.close()
+    await page.pause()
 })()
