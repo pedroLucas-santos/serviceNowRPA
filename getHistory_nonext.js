@@ -50,169 +50,182 @@ const selectFile = async () => {
         return data.file_path
     } catch (e) {
         console.error("Error selecting file:", e.message)
+        process.exit(1)
     }
 }
 
 ;(async () => {
-    const filePath = await selectFile()
-    const dir = path.dirname(filePath)  // Get the directory of the selected file
-    const newFileName = "suporte_sonepar_updated.xlsx"  // New file name
-    const newFilePath = path.join(dir, newFileName)  // Co
+    try {
+        const filePath = await selectFile()
+        const dir = path.dirname(filePath)
+        const newFileName = "suporte_sonepar_updated.xlsx"
+        const newFilePath = path.join(dir, newFileName)
 
-    let workbook, data
-    if (fs.existsSync(newFilePath)) {
-        const { workbook: existingWorkbook, data: existingData } = readExcelFile(newFilePath)
-        workbook = existingWorkbook
-        data = existingData
-    } else {
-        const { workbook: initialWorkbook, data: initialData } = readExcelFile(filePath)
-        workbook = initialWorkbook
-        data = initialData
-    }
-
-    const { incidents } = readExcelFile(filePath)
-
-    const userDataDir = "C:/Users/P0850/AppData/Local/Google/Chrome/User Data"
-    const url =
-        "https://soneparprod.service-now.com/now/nav/ui/classic/params/target/%24pa_dashboard.do%3Fsysparm_dashboard%3D5fb6e1a2c3386d94c354254ce00131a1%26sysparm_tab%3D11c6e5a2c3386d94c354254ce001316e%26sysparm_cancelable%3Dtrue%26sysparm_editable%3Dundefined%26sysparm_active_panel%3Dfalse"
-
-    const browser = await chromium.launchPersistentContext(userDataDir, {
-        headless: false,
-        executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
-        args: ["--disable-gpu", "--disable-dev-shm-usage", "--disable-software-rasterizer"],
-        viewport: { width: 1280, height: 720 },
-    })
-
-    const page = await browser.newPage()
-    await page.goto(url)
-
-    await page.waitForLoadState("networkidle")
-
-    const newColumnName = "Caixa SZ"
-    const diffColumnName = "Aberto x Caixa SZ"
-
-    let index = 0
-
-    for (const incident of incidents) {
-        console.log(`Processing incident: ${incident}`)
-
-        if (data[index][newColumnName] && data[index][diffColumnName]) {
-            console.log(`Skipping incident ${incident} because columns are already filled.`)
-            index++
-            continue
+        let workbook, data
+        if (fs.existsSync(newFilePath)) {
+            const { workbook: existingWorkbook, data: existingData } = readExcelFile(newFilePath)
+            workbook = existingWorkbook
+            data = existingData
+        } else {
+            const { workbook: initialWorkbook, data: initialData } = readExcelFile(filePath)
+            workbook = initialWorkbook
+            data = initialData
         }
 
-        await page.getByLabel("Pesquisa global", { exact: true }).locator("span").first().click()
-        await page.getByPlaceholder("Pesquisar").fill(incident)
-        await page.getByPlaceholder("Pesquisar").press("Enter")
+        const { incidents } = readExcelFile(filePath)
 
-        const contentFrame = await page.locator('iframe[name="gsft_main"]').contentFrame()
+        const userDataDir = "C:/Users/P0850/AppData/Local/Google/Chrome/User Data"
+        const url =
+            "https://soneparprod.service-now.com/now/nav/ui/classic/params/target/%24pa_dashboard.do%3Fsysparm_dashboard%3D5fb6e1a2c3386d94c354254ce00131a1%26sysparm_tab%3D11c6e5a2c3386d94c354254ce001316e%26sysparm_cancelable%3Dtrue%26sysparm_editable%3Dundefined%26sysparm_active_panel%3Dfalse"
 
-        if (contentFrame) {
-            await contentFrame.getByLabel("menu de ações adicionais").click()
+        const browser = await chromium.launchPersistentContext(userDataDir, {
+            headless: false,
+            executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+            args: ["--disable-gpu", "--disable-dev-shm-usage", "--disable-software-rasterizer"],
+            viewport: { width: 1280, height: 720 },
+        })
 
-            let ariaExpanded = await contentFrame.getByLabel("menu de ações adicionais").getAttribute("aria-expanded")
-            let retryClick = false
+        const page = await browser.newPage()
+        await page.goto(url)
 
-            while (!retryClick) {
-                if (ariaExpanded !== "true") {
+        await page.waitForLoadState("networkidle")
+
+        const newColumnName = "Caixa SZ"
+        const diffColumnName = "Aberto x Caixa SZ"
+
+        let index = 0
+
+        for (const incident of incidents) {
+            console.log(`Processing incident: ${incident}`)
+
+            if (data[index][newColumnName] && data[index][diffColumnName]) {
+                console.log(`Skipping incident ${incident} because columns are already filled.`)
+                index++
+                continue
+            }
+
+            try {
+                await page.getByLabel("Pesquisa global", { exact: true }).locator("span").first().click()
+                await page.getByPlaceholder("Pesquisar").fill(incident)
+                await page.getByPlaceholder("Pesquisar").press("Enter")
+
+                const contentFrame = await page.locator('iframe[name="gsft_main"]').contentFrame()
+
+                if (contentFrame) {
                     await contentFrame.getByLabel("menu de ações adicionais").click()
-                    ariaExpanded = await contentFrame.getByLabel("menu de ações adicionais").getAttribute("aria-expanded")
-                } else {
-                    retryClick = true
-                }
-            }
 
-            await contentFrame.getByRole("menuitem", { name: "Histórico " }).click()
-            await contentFrame.getByRole("menuitem", { name: "Calendário" }).click()
+                    let ariaExpanded = await contentFrame.getByLabel("menu de ações adicionais").getAttribute("aria-expanded")
+                    let retryClick = false
 
-            const iframe = await page.frame({ name: "gsft_main" })
-            if (!iframe) {
-                console.error("Iframe not found!")
-                return
-            }
+                    while (!retryClick) {
+                        if (ariaExpanded !== "true") {
+                            await contentFrame.getByLabel("menu de ações adicionais").click()
+                            ariaExpanded = await contentFrame.getByLabel("menu de ações adicionais").getAttribute("aria-expanded")
+                        } else {
+                            retryClick = true
+                        }
+                    }
 
-            const historyListImage = await iframe.locator('[id="img\\.historylist"]')
-            await historyListImage.waitFor({ state: "visible", timeout: 10000 })
-            await historyListImage.click()
+                    await contentFrame.getByRole("menuitem", { name: "Histórico " }).click()
+                    await contentFrame.getByRole("menuitem", { name: "Calendário" }).click()
 
-            const historyElements = await contentFrame.locator('[id^="historylist"]')
-            const elementsCount = await historyElements.count()
+                    const iframe = await page.frame({ name: "gsft_main" })
+                    if (!iframe) {
+                        console.error("Iframe not found!")
+                        return
+                    }
 
-            if (elementsCount > 0) {
-                for (let i = 0; i < elementsCount; i++) {
-                    const historyElement = historyElements.nth(i)
+                    const historyListImage = await iframe.locator('[id="img\\.historylist"]')
+                    await historyListImage.waitFor({ state: "visible", timeout: 10000 })
+                    await historyListImage.click()
 
-                    await historyElement.scrollIntoViewIfNeeded()
-                    await historyElement.waitFor({ state: "visible", timeout: 10000 })
-                    await historyElement.click()
+                    const historyElements = await contentFrame.locator('[id^="historylist"]')
+                    const elementsCount = await historyElements.count()
 
-                    const servicoCell = await historyElement.locator(':has-text("Serviço")')
-                    const servicoExists = await servicoCell.count()
+                    if (elementsCount > 0) {
+                        for (let i = 0; i < elementsCount; i++) {
+                            const historyElement = historyElements.nth(i)
 
-                    if (servicoExists > 0) {
-                        const servicoText = await servicoCell.first().textContent()
+                            await historyElement.scrollIntoViewIfNeeded()
+                            await historyElement.waitFor({ state: "visible", timeout: 10000 })
+                            await historyElement.click()
 
-                        const regexCentral = /Central de Atendimento/i
-                        const regexFornecedor = /Fornecedor SZ/i
-                        const regexSistemas = /Sistemas/i
-                        const regexEXT = /_EXT$/
+                            const servicoCell = await historyElement.locator(':has-text("Serviço")')
+                            const servicoExists = await servicoCell.count()
 
-                        const hasSistemas = regexSistemas.test(servicoText)
-                        const hasCentralAtendimento = regexCentral.test(servicoText)
-                        const hasFornecedorSZ = regexFornecedor.test(servicoText)
-                        const hasEXT = regexEXT.test(servicoText)
+                            if (servicoExists > 0) {
+                                const servicoText = await servicoCell.first().textContent()
 
-                        if ((hasCentralAtendimento || hasSistemas) && (hasFornecedorSZ || hasEXT)) {
-                            console.log(`Found: Central de Atendimento/Sistemas and Fornecedor SZ`)
-                            const fullText = await historyElement.locator('xpath=preceding-sibling::div[@id="historyEventItem"][1]').textContent()
+                                const regexCentral = /Central de Atendimento/i
+                                const regexFornecedor = /Fornecedor SZ/i
+                                const regexSistemas = /Sistemas/i
+                                const regexEXT = /_EXT$/
 
-                            const dateTimeRegex = /^\d{4}-\d{2}-\d{2}~ \d{2}:\d{2}:\d{2}/
-                            const dateTime = fullText.match(dateTimeRegex)[0]
+                                const hasSistemas = regexSistemas.test(servicoText)
+                                const hasCentralAtendimento = regexCentral.test(servicoText)
+                                const hasFornecedorSZ = regexFornecedor.test(servicoText)
+                                const hasEXT = regexEXT.test(servicoText)
 
-                            const excelDateTime = dateTime.replace("~", " ")
+                                if ((hasCentralAtendimento || hasSistemas) && (hasFornecedorSZ || hasEXT)) {
+                                    console.log(`Found: Central de Atendimento/Sistemas and Fornecedor SZ`)
+                                    const fullText = await historyElement
+                                        .locator('xpath=preceding-sibling::div[@id="historyEventItem"][1]')
+                                        .textContent()
 
-                            console.log("Excel-friendly date and time:", excelDateTime, "\n")
+                                    const dateTimeRegex = /^\d{4}-\d{2}-\d{2}~ \d{2}:\d{2}:\d{2}/
+                                    const dateTime = fullText.match(dateTimeRegex)[0]
 
-                            if (dateTime) {
-                                data[index][newColumnName] = excelDateTime
+                                    const excelDateTime = dateTime.replace("~", " ")
 
-                                const abertoCell = `A${index + 2}`
-                                const caixaSZCell = `L${index + 2}`
+                                    console.log("Excel-friendly date and time:", excelDateTime, "\n")
 
-                                data[index][
-                                    diffColumnName
-                                ] = `=INT(${caixaSZCell} - ${abertoCell}) & " dias, " & HORA(${caixaSZCell} - ${abertoCell}) & " horas, " & MINUTO(${caixaSZCell} - ${abertoCell}) & " minutos"`
+                                    if (dateTime) {
+                                        data[index][newColumnName] = excelDateTime
+
+                                        const abertoCell = `A${index + 2}`
+                                        const caixaSZCell = `L${index + 2}`
+
+                                        data[index][
+                                            diffColumnName
+                                        ] = `=INT(${caixaSZCell} - ${abertoCell}) & " dias, " & HORA(${caixaSZCell} - ${abertoCell}) & " horas, " & MINUTO(${caixaSZCell} - ${abertoCell}) & " minutos"`
+                                    }
+                                }
                             }
                         }
                     }
                 }
+            } catch (err) {
+                console.error("Error processing incident:", incident, err)
+                // Log or handle specific error for this incident
             }
+
+            const columnOrder = [
+                "Aberto",
+                "Número",
+                "IC Afetado",
+                "Empresa Afetada",
+                "Aberto por",
+                "Descrição resumida",
+                "Atribuído a",
+                "Encerrado",
+                "Estado",
+                "SLA de Resolução %",
+                "SLA de Resolução Tempo",
+                newColumnName,
+                diffColumnName,
+            ]
+
+            const reorderedData = reorderColumns(data, columnOrder)
+
+            saveToExcelFile(workbook, reorderedData, [newColumnName, diffColumnName], newFilePath)
+
+            console.log("Data saved to file: ", newFilePath)
+
+            index++
         }
-
-        const columnOrder = [
-            "Aberto",
-            "Número",
-            "IC Afetado",
-            "Empresa Afetada",
-            "Aberto por",
-            "Descrição resumida",
-            "Atribuído a",
-            "Encerrado",
-            "Estado",
-            "SLA de Resolução %",
-            "SLA de Resolução Tempo",
-            newColumnName,
-            diffColumnName,
-        ]
-
-        const reorderedData = reorderColumns(data, columnOrder)
-
-        saveToExcelFile(workbook, reorderedData, [newColumnName, diffColumnName], newFilePath)
-
-        console.log("Data saved to file: ", newFilePath)
-
-        index++
+        await browser.close()
+    } catch (err) {
+        console.error("An error occurred:", err)
+        process.exit(1)
     }
-    await page.pause()
 })()
