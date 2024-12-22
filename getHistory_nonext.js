@@ -39,8 +39,22 @@ const reorderColumns = (data, columnOrder) => {
     })
 }
 
+const selectFile = async () => {
+    try {
+        const response = await fetch("http://127.0.0.1:5000/select-file")
+        if (!response.ok) {
+            throw new Error("Failed to get file path")
+        }
+
+        const data = await response.json()
+        return data.file_path
+    } catch (e) {
+        console.error("Error selecting file:", e.message)
+    }
+}
+
 ;(async () => {
-    const filePath = "C:/Users/P0850/Downloads/relatorios/suporte_sonepar_att_2024-12-04.xlsx"
+    const filePath = await selectFile()
     const newFilePath = "C:/Users/P0850/Downloads/relatorios/suporte_sonepar_updated.xlsx"
 
     let workbook, data
@@ -60,7 +74,7 @@ const reorderColumns = (data, columnOrder) => {
     const url =
         "https://soneparprod.service-now.com/now/nav/ui/classic/params/target/%24pa_dashboard.do%3Fsysparm_dashboard%3D5fb6e1a2c3386d94c354254ce00131a1%26sysparm_tab%3D11c6e5a2c3386d94c354254ce001316e%26sysparm_cancelable%3Dtrue%26sysparm_editable%3Dundefined%26sysparm_active_panel%3Dfalse"
 
-    const browser = await chromium.launchPersistentContext(userDataDir,{
+    const browser = await chromium.launchPersistentContext(userDataDir, {
         headless: false,
         executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
         args: ["--disable-gpu", "--disable-dev-shm-usage", "--disable-software-rasterizer"],
