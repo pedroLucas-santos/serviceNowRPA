@@ -55,7 +55,9 @@ const selectFile = async () => {
 
 ;(async () => {
     const filePath = await selectFile()
-    const newFilePath = "C:/Users/P0850/Downloads/relatorios/suporte_sonepar_updated.xlsx"
+    const dir = path.dirname(filePath)  // Get the directory of the selected file
+    const newFileName = "suporte_sonepar_updated.xlsx"  // New file name
+    const newFilePath = path.join(dir, newFileName)  // Co
 
     let workbook, data
     if (fs.existsSync(newFilePath)) {
